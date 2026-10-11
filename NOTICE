@@ -1,0 +1,24 @@
+eme-mcp
+Copyright (C) 2026 Greg Beam, KI7MT and the qso-graph contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE.
+
+---
+
+The algorithms this server computes from are from:
+
+  Jean Meeus, "Astronomical Algorithms", 2nd edition, Willmann-Bell, 1998.
+  Chapters 7 (Julian Day), 11 (the Earth's figure), 12 (sidereal time),
+  22 (nutation and obliquity), 40 (parallax) and 47 (the moon's position).
+
+The implementation is ours and is covered by the licence above. The
+mathematics is Meeus's and is not claimed. Each chapter is cited in the source
+at the point it is used.
+
+Test fixtures under tests/ are recorded responses from NASA JPL's Horizons
+system (https://ssd.jpl.nasa.gov/horizons/), used to check this server's
+arithmetic. They are facts about the solar system, produced by a US government
+service, and are not claimed either.
