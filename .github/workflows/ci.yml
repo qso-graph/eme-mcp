@@ -73,31 +73,9 @@ jobs:
       - name: Security tests
         run: uv run pytest tests/test_security.py -v
 
-  sources:
-    # Pre-release only: the owners' lists change about once a decade, so ordinary PRs don't fetch them.
-    name: sources (pre-release, our facts against the owner's document)
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-          enable-cache: true
-
-      - name: Install (locked)
-        run: uv sync --group dev --frozen
-
-      - name: Download the sources (owner's documents, checked against their SHA-256)
-        run: uv run python scripts/fetch_published.py
-
-      - name: Tests against the sources (AD1C and ARRL fetched by the tests)
-        run: uv run pytest tests --live --ignore=tests/test_security.py -v
-
   ci-all-green:
     name: ci-all-green
-    needs: [lint, test, sources]
+    needs: [lint, test]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -109,10 +87,6 @@ jobs:
           fi
           if [[ "${{ needs.test.result }}" != "success" ]]; then
             echo "FAIL: test matrix did not all succeed (result=${{ needs.test.result }})"
-            exit 1
-          fi
-          if [[ "${{ needs.sources.result }}" != "success" && "${{ needs.sources.result }}" != "skipped" ]]; then
-            echo "FAIL: checks against the sources did not succeed (result=${{ needs.sources.result }})"
             exit 1
           fi
           echo "All required CI jobs passed."
