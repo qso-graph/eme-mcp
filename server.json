@@ -1,18 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.qso-graph/eme-mcp",
-  "description": "EME (Earth-Moon-Earth) prediction for amateur radio — moon windows, path loss and degradation, computed locally with no network calls",
+  "description": "EME prediction for amateur radio: moon windows, path loss and degradation, computed locally",
   "repository": {
     "url": "https://github.com/qso-graph/eme-mcp",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "eme-mcp",
-      "version": "0.1.0",
-      "transport": { "type": "stdio" }
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ],
   "_meta": {

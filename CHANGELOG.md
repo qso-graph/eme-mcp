@@ -5,6 +5,14 @@ All notable changes to `eme-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-10-11
+
+- **The MCP Registry refused 0.1.0**: `server.json`'s description was 133 characters and the
+  Registry's limit is 100. PyPI had already accepted the upload by then, so 0.1.0 exists there
+  but was never registered or tagged. The description is now 91 characters, and a test asserts
+  the limit so it cannot be found by a failing publish again. Every other server in the fleet
+  sits between 72 and 93 characters; this one was the outlier.
+
 ## [0.1.0] — 2026-10-11
 
 - First release. EME planning: moon windows for a grid square, mutual windows between two
