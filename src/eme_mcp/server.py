@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, NoReturn
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from . import __version__, eme, grid, moon
 
@@ -36,8 +37,20 @@ MAX_DAYS = 365
 MIN_STEP_MINUTES = 1.0
 
 
-def _err(message: str) -> dict[str, Any]:
-    return {"error": message}
+def _err(message: str) -> NoReturn:
+    """Reject bad input the way the protocol specifies.
+
+    This returned ``{"error": message}`` as a *successful* result, so a client could not
+    tell a rejection from an answer. The specification says of ``CallToolResult.isError``
+    that otherwise "the LLM would not be able to see that an error occurred and
+    self-correct".
+
+    Nine call sites reached it, and the messages are the useful part: a bad locator, a
+    frequency outside 30 MHz to 25 GHz, a band this server does not name, a time it
+    cannot parse. Each tells the caller what to send instead, so each survives the
+    conversion unchanged.
+    """
+    raise ToolError(message)
 
 
 def _version_info_payload() -> dict[str, Any]:
@@ -57,7 +70,9 @@ def _parse_when(when: str | None) -> datetime | None:
         parsed = datetime.fromisoformat(str(when).replace("Z", "+00:00"))
     except ValueError:
         return None
-    return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo:
+        return parsed.astimezone(timezone.utc)
+    return parsed.replace(tzinfo=timezone.utc)
 
 
 def _jd(moment: datetime) -> float:
@@ -66,7 +81,32 @@ def _jd(moment: datetime) -> float:
                                          + moment.second / 3600.0) / 24.0)
 
 
-@mcp.tool()
+# MCP 2026-07-28 tool annotations. The defaults are pessimistic — a tool that declares
+# nothing is advertised as destructive, non-idempotent and open-world, and the
+# specification tells a client it may keep a human in the loop for that.
+#
+# All five tools share one block, and the reason is not the owner-list servers' reason.
+# There it is reference data carried in the wheel; here nothing is carried at all. This
+# server *computes* — the moon's position from Meeus chapter 47, free-space path loss,
+# degradation, a calendar of windows — so there is nothing to fetch and nothing to read.
+# tests/test_mcp_conformance.py asserts that premise rather than the values.
+_COMPUTED_ON_THIS_MACHINE = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    # Stronger here than anywhere else in this fleet. An owner-list server is idempotent
+    # until the package is upgraded and the data changes under it; a live-service server
+    # is idempotent only in the sense the specification means, while its answers move.
+    # These are closed-form calculations: the same arguments give the same answer in
+    # 2026 and in 2036. Where an answer does move — `when` left empty means now — it is
+    # the argument defaulting, not the tool behaving differently.
+    "idempotentHint": True,
+    # Nothing leaves the machine, and nothing is read from it either. The ephemeris is
+    # arithmetic, not a file and not a service.
+    "openWorldHint": False,
+}
+
+
+@mcp.tool(annotations=_COMPUTED_ON_THIS_MACHINE)
 def get_version_info() -> dict[str, Any]:
     """Get eme-mcp's version and the ephemeris series it computes from.
 
@@ -76,7 +116,7 @@ def get_version_info() -> dict[str, Any]:
     return _version_info_payload()
 
 
-@mcp.tool(name=f"{P}_moon_window")
+@mcp.tool(name=f"{P}_moon_window", annotations=_COMPUTED_ON_THIS_MACHINE)
 def moon_window(
     locator: str,
     hours: float | None = 24.0,
@@ -100,13 +140,13 @@ def moon_window(
     try:
         here = grid.place(locator)
     except grid.GridError as error:
-        return _err(str(error))
+        _err(str(error))
     there = None
     if other_locator:
         try:
             there = grid.place(other_locator)
         except grid.GridError as error:
-            return _err(str(error))
+            _err(str(error))
 
     span = _clamp(float(hours if hours is not None else 24.0), 0.0, MAX_HOURS)
     step = max(float(step_minutes if step_minutes is not None else 30.0), MIN_STEP_MINUTES)
@@ -157,7 +197,7 @@ def moon_window(
     return answer
 
 
-@mcp.tool(name=f"{P}_path_loss")
+@mcp.tool(name=f"{P}_path_loss", annotations=_COMPUTED_ON_THIS_MACHINE)
 def path_loss(
     band: str | None = "70cm",
     frequency_mhz: float | None = None,
@@ -179,20 +219,21 @@ def path_loss(
     """
     moment = _parse_when(when)
     if moment is None:
-        return _err(f"{when!r} is not a time this understands. Use ISO 8601, e.g. 2026-10-12T00:00Z.")
+        _err(f"{when!r} is not a time this understands. Use ISO 8601, e.g. 2026-10-12T00:00Z.")
 
     if frequency_mhz is not None:
         try:
             freq = float(frequency_mhz)
         except (TypeError, ValueError):
-            return _err("frequency_mhz must be a number.")
+            _err("frequency_mhz must be a number.")
         if not 30.0 <= freq <= 25_000.0:
-            return _err("frequency_mhz must be between 30 and 25000 (EME is worked from 6m to 24 GHz).")
+            _err("frequency_mhz must be between 30 and 25000 "
+                 "(EME is worked from 6m to 24 GHz).")
         band_name = f"{freq:g} MHz"
     else:
         key = str(band or "70cm").lower()
         if key not in eme.BANDS_MHZ:
-            return _err(f"{band!r} is not a band this names. Use one of "
+            _err(f"{band!r} is not a band this names. Use one of "
                         f"{', '.join(eme.BANDS_MHZ)}, or give frequency_mhz.")
         freq, band_name = eme.BANDS_MHZ[key], key
 
@@ -201,7 +242,7 @@ def path_loss(
         try:
             here = grid.place(locator)
         except grid.GridError as error:
-            return _err(str(error))
+            _err(str(error))
         distance = moon.look_angle(jd, here.latitude, here.longitude).distance_km
         seen_from = here.locator
     else:
@@ -226,7 +267,7 @@ def path_loss(
     }
 
 
-@mcp.tool(name=f"{P}_degradation")
+@mcp.tool(name=f"{P}_degradation", annotations=_COMPUTED_ON_THIS_MACHINE)
 def degradation(locator: str | None = "", when: str | None = "") -> dict[str, Any]:
     """How much worse than the best case the moon is, now or at a given time.
 
@@ -240,7 +281,7 @@ def degradation(locator: str | None = "", when: str | None = "") -> dict[str, An
     """
     moment = _parse_when(when)
     if moment is None:
-        return _err(f"{when!r} is not a time this understands. Use ISO 8601, e.g. 2026-10-12T00:00Z.")
+        _err(f"{when!r} is not a time this understands. Use ISO 8601, e.g. 2026-10-12T00:00Z.")
 
     jd = _jd(moment)
     position = moon.position(jd)
@@ -250,7 +291,7 @@ def degradation(locator: str | None = "", when: str | None = "") -> dict[str, An
         try:
             here = grid.place(locator)
         except grid.GridError as error:
-            return _err(str(error))
+            _err(str(error))
         distance = moon.look_angle(jd, here.latitude, here.longitude).distance_km
         seen_from = here.locator
 
@@ -266,7 +307,7 @@ def degradation(locator: str | None = "", when: str | None = "") -> dict[str, An
     }
 
 
-@mcp.tool(name=f"{P}_calendar")
+@mcp.tool(name=f"{P}_calendar", annotations=_COMPUTED_ON_THIS_MACHINE)
 def calendar(days: int | None = 30) -> dict[str, Any]:
     """The least degraded days ahead — when the moon is nearest.
 
