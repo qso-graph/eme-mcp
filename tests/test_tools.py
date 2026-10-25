@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 from eme_mcp import eme, grid, server
 
@@ -93,7 +94,8 @@ class TestTools:
         """EME-040: the window is sampled, and a huge request is clamped."""
         answer = server.moon_window("DN13", hours=6, step_minutes=60)
         assert len(answer["rows"]) == 7
-        assert {"time_utc", "azimuth_deg", "elevation_deg", "distance_km"} <= set(answer["rows"][0])
+        expected = {"time_utc", "azimuth_deg", "elevation_deg", "distance_km"}
+        assert expected <= set(answer["rows"][0])
         huge = server.moon_window("DN13", hours=99_999, step_minutes=60 * 24)
         assert huge["hours"] <= 24 * 14
 
@@ -103,7 +105,8 @@ class TestTools:
         assert answer["other_locator"] == "IO91"
         assert "mutual_rows" in answer
         for row in answer["rows"]:
-            assert row["mutual"] == (row["elevation_deg"] > 0 and row["other_elevation_deg"] > 0)
+            both_up = row["elevation_deg"] > 0 and row["other_elevation_deg"] > 0
+            assert row["mutual"] == both_up
 
     def test_an_antipodal_pair_shares_little_or_no_moon(self) -> None:
         """EME-042: not vacuous — the mutual window really does exclude.
@@ -119,9 +122,10 @@ class TestTools:
         """EME-043: both routes, and nonsense refused."""
         assert server.path_loss(band="2m")["frequency_mhz"] == eme.BANDS_MHZ["2m"]
         assert server.path_loss(frequency_mhz=1296.0)["frequency_mhz"] == 1296.0
-        assert "error" in server.path_loss(band="11m")
-        assert "error" in server.path_loss(frequency_mhz=1.0)
-        assert "error" in server.path_loss(frequency_mhz=99_999.0)
+        # Refusals are flagged now, not returned as successful results (#8).
+        for bad in ({"band": "11m"}, {"frequency_mhz": 1.0}, {"frequency_mhz": 99_999.0}):
+            with pytest.raises(ToolError):
+                server.path_loss(**bad)
 
     def test_topocentric_when_a_locator_is_given(self) -> None:
         """EME-044: a locator changes the range, because it should."""
@@ -134,8 +138,10 @@ class TestTools:
     def test_a_bad_time_is_refused_rather_than_guessed(self) -> None:
         """EME-045: a misread time gives a confidently wrong answer."""
         for bad in ("yesterday", "2026-13-45", "not-a-time"):
-            assert "error" in server.path_loss(band="2m", when=bad)
-            assert "error" in server.degradation(when=bad)
+            with pytest.raises(ToolError):
+                server.path_loss(band="2m", when=bad)
+            with pytest.raises(ToolError):
+                server.degradation(when=bad)
 
     def test_calendar_is_bounded_and_ranked(self) -> None:
         """EME-046: a year at most, best days first, and honest about sky noise."""

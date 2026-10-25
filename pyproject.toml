@@ -62,7 +62,6 @@ extend-exclude = [".venv", "dist", "build", ".eggs", ".pytest_cache", "site"]
 # E501 is deferred across the fleet (qso-graph-devel#70): what it reports in
 # these repos are widths, not defects.
 select = ["E", "F", "I"]
-ignore = ["E501"]
 fixable = ["I"]
 
 [tool.mypy]
