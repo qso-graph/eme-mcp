@@ -1,6 +1,6 @@
 [project]
 name = "eme-mcp"
-version = "0.1.1"
+version = "0.2.0"
 description = "EME (Earth-Moon-Earth) prediction for amateur radio — moon windows, path loss and degradation, computed locally"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -62,7 +62,6 @@ extend-exclude = [".venv", "dist", "build", ".eggs", ".pytest_cache", "site"]
 # E501 is deferred across the fleet (qso-graph-devel#70): what it reports in
 # these repos are widths, not defects.
 select = ["E", "F", "I"]
-ignore = ["E501"]
 fixable = ["I"]
 
 [tool.mypy]
