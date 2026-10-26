@@ -1,6 +1,6 @@
 [project]
 name = "eme-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "EME (Earth-Moon-Earth) prediction for amateur radio — moon windows, path loss and degradation, computed locally"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
