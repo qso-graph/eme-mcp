@@ -70,7 +70,7 @@ They answer different questions and are often confused, so both are returned:
   271 on 23cm at mean distance, which are the numbers EME operators know.
 - **`round_trip_db`** is twice the free-space loss. It ignores the moon entirely.
 
-## Licence
+## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 
